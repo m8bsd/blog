@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: layout(~{::title}, ~{::section})}">
+<head>
+    <title>All posts - My Blog</title>
+</head>
+<body>
+<section class="container">
+    <div class="chips">
+        <a class="chip" th:classappend="${selectedCategory == null} ? 'active'" th:href="@{/}">All</a>
+        <a class="chip" th:each="c : ${categories}"
+           th:classappend="${selectedCategory != null and selectedCategory == c.id} ? 'active'"
+           th:href="@{/(category=${c.id})}" th:text="${c.name}">Category</a>
+    </div>
+
+    <div th:if="${#lists.isEmpty(posts)}" class="empty">
+        <p>No posts here yet.</p>
+    </div>
+
+    <article class="card" th:each="p : ${posts}">
+        <h2><a th:href="@{/posts/{id}(id=${p.id})}" th:text="${p.title}">Title</a></h2>
+        <div class="meta">
+            By <span th:text="${p.author}">Author</span> ·
+            <span th:text="${#temporals.format(p.createdAt, 'dd MMM yyyy, HH:mm')}">date</span>
+            <a th:if="${p.category != null}" class="badge"
+               th:href="@{/(category=${p.category.id})}" th:text="${p.category.name}">Category</a>
+        </div>
+        <p th:text="${#strings.abbreviate(p.content, 200)}">Excerpt</p>
+        <a th:href="@{/posts/{id}(id=${p.id})}">Read more &rarr;</a>
+    </article>
+</section>
+</body>
+</html>

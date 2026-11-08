@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: layout(~{::title}, ~{::section})}">
+<head>
+    <title>Admin login - My Blog</title>
+</head>
+<body>
+<section class="container">
+    <div class="card narrow">
+        <h2>Admin login</h2>
+
+        <p class="error" th:if="${param.error}">Wrong username or password.</p>
+
+        <form th:action="@{/login}" method="post">
+            <div class="field">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" autofocus autocomplete="username">
+            </div>
+            <div class="field">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" autocomplete="current-password">
+            </div>
+            <button type="submit" class="btn">Log in</button>
+        </form>
+    </div>
+</section>
+</body>
+</html>

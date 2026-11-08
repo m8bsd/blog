@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      th:replace="~{layout :: layout(~{::title}, ~{::section})}">
+<head>
+    <title th:text="${post.title} + ' - My Blog'">Post - My Blog</title>
+</head>
+<body>
+<section class="container">
+    <article class="card">
+        <h2 th:text="${post.title}">Title</h2>
+        <div class="meta">
+            By <span th:text="${post.author}">Author</span> ·
+            <span th:text="${#temporals.format(post.createdAt, 'dd MMM yyyy, HH:mm')}">date</span>
+            <a th:if="${post.category != null}" class="badge"
+               th:href="@{/(category=${post.category.id})}" th:text="${post.category.name}">Category</a>
+        </div>
+        <div class="content" th:text="${post.content}">Content</div>
+
+        <div class="actions">
+            <a class="btn secondary" th:href="@{/}">Back</a>
+            <span sec:authorize="hasRole('ADMIN')" class="nav-admin">
+                <a class="btn" th:href="@{/posts/{id}/edit(id=${post.id})}">Edit</a>
+                <form th:action="@{/posts/{id}/delete(id=${post.id})}" method="post" class="inline"
+                      onsubmit="return confirm('Delete this post and its comments?');">
+                    <button type="submit" class="btn danger">Delete</button>
+                </form>
+            </span>
+        </div>
+    </article>
+
+    <h3 id="comments">Comments (<span th:text="${#lists.size(comments)}">0</span>)</h3>
+
+    <div th:if="${#lists.isEmpty(comments)}" class="empty">
+        <p>No comments yet. Be the first.</p>
+    </div>
+
+    <div class="card comment" th:each="c : ${comments}">
+        <div class="meta">
+            <strong th:text="${c.name}">Name</strong> ·
+            <span th:text="${#temporals.format(c.createdAt, 'dd MMM yyyy, HH:mm')}">date</span>
+        </div>
+        <div class="content" th:text="${c.body}">Body</div>
+        <form sec:authorize="hasRole('ADMIN')" th:action="@{/comments/{id}/delete(id=${c.id})}" method="post"
+              onsubmit="return confirm('Delete this comment?');">
+            <button type="submit" class="btn danger small">Delete comment</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3>Leave a comment</h3>
+        <form th:action="@{/posts/{id}/comments(id=${post.id})}" th:object="${comment}" method="post">
+            <div class="field">
+                <label for="name">Name</label>
+                <input type="text" id="name" th:field="*{name}">
+                <div class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">error</div>
+            </div>
+            <div class="field">
+                <label for="body">Comment</label>
+                <textarea id="body" class="short" th:field="*{body}"></textarea>
+                <div class="error" th:if="${#fields.hasErrors('body')}" th:errors="*{body}">error</div>
+            </div>
+            <button type="submit" class="btn">Post comment</button>
+        </form>
+    </div>
+</section>
+</body>
+</html>
