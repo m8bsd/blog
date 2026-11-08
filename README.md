@@ -1,3 +1,18 @@
+# Check that Java is installed:
+```
+java -version
+```
+```
+javac -version
+```
+# run a single source file
+```
+javac main.java
+```
+```
+java main
+```
+
 # Simple Blog (Spring Boot)
 
 A small blog with posts, categories, comments and an admin login.
