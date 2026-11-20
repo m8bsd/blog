@@ -1,0 +1,111 @@
+package main
+
+import (
+	"errors"
+	"log"
+	"net/http"
+	"os"
+	"strconv"
+	"strings"
+
+	"github.com/a-h/templ"
+)
+
+type handlers struct {
+	store *Store
+}
+
+func main() {
+	store, err := NewStore("posts.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Seed a first post so the page isn't empty.
+	if len(store.All()) == 0 {
+		_, _ = store.Create(
+			"Welcome to your blog",
+			"This is a tiny blog built with Go, templ, HTMX and Bootstrap.\n\nUse the form above to write a new post, or delete this one.",
+		)
+	}
+
+	h := &handlers{store: store}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /{$}", h.index)
+	mux.HandleFunc("POST /posts", h.create)
+	mux.HandleFunc("GET /posts/{id}", h.show)
+	mux.HandleFunc("DELETE /posts/{id}", h.delete)
+
+	addr := ":8080"
+	if v := os.Getenv("ADDR"); v != "" {
+		addr = v
+	}
+	log.Printf("listening on http://localhost%s", addr)
+	log.Fatal(http.ListenAndServe(addr, mux))
+}
+
+func (h *handlers) index(w http.ResponseWriter, r *http.Request) {
+	render(w, r, IndexPage(h.store.All()))
+}
+
+func (h *handlers) show(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	post, err := h.store.Get(id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	render(w, r, PostPage(post))
+}
+
+// create returns just the new post card; HTMX prepends it to the list.
+func (h *handlers) create(w http.ResponseWriter, r *http.Request) {
+	title := strings.TrimSpace(r.FormValue("title"))
+	body := strings.TrimSpace(r.FormValue("body"))
+	if title == "" || body == "" {
+		http.Error(w, "title and body are required", http.StatusBadRequest)
+		return
+	}
+
+	post, err := h.store.Create(title, body)
+	if err != nil {
+		http.Error(w, "could not save post", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	render(w, r, PostCard(post))
+}
+
+// delete returns an empty body, so HTMX swaps the card out of the page.
+// With ?redirect=1 (used on the post page) it sends the browser home instead.
+func (h *handlers) delete(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := h.store.Delete(id); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, "could not delete post", http.StatusInternalServerError)
+		return
+	}
+	if r.URL.Query().Get("redirect") == "1" {
+		w.Header().Set("HX-Redirect", "/")
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func render(w http.ResponseWriter, r *http.Request, c templ.Component) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := c.Render(r.Context(), w); err != nil {
+		log.Printf("render error: %v", err)
+	}
+}

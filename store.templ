@@ -1,0 +1,108 @@
+package main
+
+import (
+	"encoding/json"
+	"errors"
+	"os"
+	"sort"
+	"sync"
+	"time"
+)
+
+type Post struct {
+	ID        int       `json:"id"`
+	Title     string    `json:"title"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// Store keeps posts in memory and persists them to a JSON file.
+type Store struct {
+	mu     sync.RWMutex
+	path   string
+	posts  []Post
+	nextID int
+}
+
+var ErrNotFound = errors.New("post not found")
+
+func NewStore(path string) (*Store, error) {
+	s := &Store{path: path, nextID: 1}
+
+	data, err := os.ReadFile(path)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		// fresh start
+	case err != nil:
+		return nil, err
+	default:
+		if err := json.Unmarshal(data, &s.posts); err != nil {
+			return nil, err
+		}
+		for _, p := range s.posts {
+			if p.ID >= s.nextID {
+				s.nextID = p.ID + 1
+			}
+		}
+	}
+	return s, nil
+}
+
+// All returns posts newest first.
+func (s *Store) All() []Post {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	out := make([]Post, len(s.posts))
+	copy(out, s.posts)
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	return out
+}
+
+func (s *Store) Get(id int) (Post, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, p := range s.posts {
+		if p.ID == id {
+			return p, nil
+		}
+	}
+	return Post{}, ErrNotFound
+}
+
+func (s *Store) Create(title, body string) (Post, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	p := Post{ID: s.nextID, Title: title, Body: body, CreatedAt: time.Now()}
+	s.nextID++
+	s.posts = append(s.posts, p)
+	return p, s.save()
+}
+
+func (s *Store) Delete(id int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for i, p := range s.posts {
+		if p.ID == id {
+			s.posts = append(s.posts[:i], s.posts[i+1:]...)
+			return s.save()
+		}
+	}
+	return ErrNotFound
+}
+
+// save must be called with the write lock held.
+func (s *Store) save() error {
+	data, err := json.MarshalIndent(s.posts, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := s.path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, s.path)
+}
